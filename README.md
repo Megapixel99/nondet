@@ -1,5 +1,9 @@
 # `nondet`
 
+[![PyPI](https://img.shields.io/pypi/v/nondet?label=PyPI&color=3775A9)](https://pypi.org/project/nondet/)
+[![ci](https://github.com/Megapixel99/nondet/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Megapixel99/nondet/actions/workflows/ci.yml)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Run a function more than once, **in fresh processes**, and see if it answers the same.
 
 ```sh
