@@ -1,0 +1,162 @@
+# A determinism checker has to answer for its own determinism, and for its own mess.
+#
+# Three gates here are this package's own properties pointed back at the package:
+#
+#   1. IT IS POINTED AT ITSELF. A tool that finds nondeterministic functions and has
+#      never been run over its own source is making a claim it has not checked.
+#
+#   2. THE TREE MUST BE CLEAN AFTERWARDS. This package EXECUTES the code it probes.
+#      The first ungated run against a real tree created five directories and a config
+#      file on disk, named after ladder values, because the functions it called wrote
+#      files. The safety gate exists because of that, and this is the check that the
+#      gate is still doing its job.
+#
+#   3. THE FIXTURE MEASUREMENT IS RE-RUN, NOT QUOTED. The README claims 9 of 9 caught
+#      and 0 of 9 falsely flagged. A number in a README that nothing recomputes is a
+#      number that was true once.
+#
+# Action versions are pinned at v7 deliberately. Older majors still run, on a Node the
+# runner silently substitutes, and a pin that is wrong for its own runtime is invisible
+# in a pass/fail — you only see it in an annotation nobody reads.
+name: ci
+
+on:
+  push:
+    # `master` only. A branch with an open PR matches both triggers and every job runs
+    # twice, and a concurrency group does NOT fix it: the push event keys on
+    # `refs/heads/<branch>` while the pull_request event keys on `<branch>`, so they
+    # land in different groups.
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+  # `release.yml` calls this workflow rather than copying the jobs into itself.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor is what `pyproject.toml` claims, and the claim is checked rather
+        # than trusted: `requires-python = ">=3.9"` is a promise, and a promise nothing
+        # runs is the stale-documentation defect in a metadata file.
+        python-version: ['3.9', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: no dependencies, and that is a design constraint
+        run: |
+          if python3 -c "import nondet, nondet.core, nondet.cli" 2>&1 \
+             | grep -q "ModuleNotFoundError"; then
+            echo "::error::nondet imported something outside the standard library"
+            exit 1
+          fi
+          python3 -c "import nondet; print('nondet', nondet.__version__)"
+
+      - name: the suites
+        run: python3 -m unittest discover -s tests -v
+
+      - name: hash randomisation is actually on
+        # The flagship defect is invisible without it. A runner that pinned
+        # PYTHONHASHSEED globally would make the whole suite pass while the package's
+        # central claim went untested — so the premise is asserted, not assumed.
+        run: |
+          a=$(python3 -c "print(hash('alpha'))")
+          b=$(python3 -c "print(hash('alpha'))")
+          echo "two processes hashed 'alpha' as $a and $b"
+          if [ "$a" = "$b" ]; then
+            echo "::error::string hashing is not randomised here; the flagship test proves nothing"
+            exit 1
+          fi
+
+      - name: the tree came back
+        # This package runs other people's functions. The safety gate is what keeps it
+        # from writing to the tree, and this is the check that the gate held.
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::probing left artefacts in the tree — the safety gate did not hold"
+            git status --porcelain
+            exit 1
+          fi
+          echo "clean"
+
+  measured:
+    # The README's numbers, recomputed. Not a smoke test: these are the claims.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: the labelled set still scores what the README says
+        run: |
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, "."); sys.path.insert(0, "fixtures")
+          from nondet import check, functions_in
+          from known import LABELS
+          rows = [(n, LABELS[n], check("fixtures/known.py", n, a).state)
+                  for n, a in functions_in("fixtures/known.py") if n in LABELS]
+          missed = [n for n, e, g in rows if e == "nondeterministic" and g != e]
+          false  = [n for n, e, g in rows if e == "deterministic" and g == "nondeterministic"]
+          caught = [n for n, e, g in rows if e == "nondeterministic" and g == e]
+          print(f"{len(rows)} labelled, {len(caught)} caught, {len(missed)} missed, {len(false)} false")
+          assert not missed, f"missed: {missed}"
+          assert not false, f"false positives: {false}"
+          # The denominators, so a fixture file that quietly emptied cannot pass this.
+          assert len(caught) >= 9, f"only {len(caught)} nondeterministic fixtures"
+          assert len(rows) >= 18, f"only {len(rows)} labelled fixtures"
+          PY
+
+      - name: pointed at itself
+        # It should find nothing. `look` never fails a run, so a low probe rate shows up
+        # as a count rather than as a pass.
+        run: |
+          set +e
+          python3 -m nondet.cli nondet --quiet
+          code=$?
+          set -e
+          if [ "$code" -eq 1 ]; then
+            echo "::error::nondet found nondeterminism in its own source"
+            exit 1
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::nondet could not run over itself (exit $code)"
+            exit 1
+          fi
+
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: install the built artifact, not the source tree
+        # A packaging mistake — a missing module in `packages`, a broken entry point —
+        # is invisible when the tests import from the working directory.
+        run: |
+          python3 -m pip install --quiet build
+          python3 -m build --wheel --outdir /tmp/dist
+          python3 -m pip install --quiet /tmp/dist/*.whl
+          cp fixtures/known.py /tmp/known.py
+          cd /tmp   # away from the source tree, so an import can only come from the wheel
+          nondet --help
+          set +e
+          nondet /tmp/known.py --quiet
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "::error::the fixtures hold known nondeterministic functions; expected exit 1, got $code"
+            exit 1
+          fi
