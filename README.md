@@ -57,20 +57,45 @@ test says so.
 The `deterministic` line says so in the output rather than letting you read it as a
 guarantee.
 
+**And it has to have been earned.** An exception is recorded as its type, so a rung
+where every run raised is comparable like any other — `E:TypeError` is a canonical
+value and two runs can still disagree about it. But a function where *every* rung
+raised is one whose body the ladder never reached, and that is not the same result as
+a function it walked end to end. It is a `look`, and the reason says so:
+
+```
+look             tools/handler.py::run_tool — every rung raised — the ladder reached
+                 this function's type errors and never its behaviour (23 of 23 rungs)
+```
+
+The commonest shape is a function taking a mapping or an instance: every rung of a
+scalar ladder is the wrong type, the call raises on the way in, and nothing inside the
+function ever runs. Raising on *some* rungs and answering on others is ordinary and
+stays `deterministic` — with the count of raising rungs printed, because that is what
+says how much of the ladder actually landed.
+
 ## What it is measured at
 
-**A labelled fixture set** (`fixtures/known.py`, 18 functions, labels written down
+**A labelled fixture set** (`fixtures/known.py`, 19 functions, labels written down
 separately from the names so the checker is not graded against its own convention):
 
 | | |
 |---|---|
 | nondeterministic caught | **9 of 9** |
-| deterministic falsely flagged | **0 of 9** |
+| deterministic falsely flagged | **0 of 10** |
+| deterministic returned as `look` | **1 of 10** — `always_raises`, and deliberately |
 
 The pairs are the point. `dedup_unsorted` and `dedup_sorted` are one `sorted()` apart.
 `seeded` uses `random.Random(42)` — deterministic, and the specific false positive a
 static gate that greps for `random` produces. `duration_arithmetic` imports `time` and
 never reads the clock.
+
+`always_raises` is the third row above and its label stays `deterministic`, because the
+label is a fact about the function and the checker is graded against it rather than
+describing it. What the checker returns is a `look`: every rung raised, so it never saw
+this function return anything, and it cannot tell that apart from a function whose
+ladder inputs were simply the wrong shape. `sometimes_raises` is the control that keeps
+the rule narrow — it raises on 17 rungs and answers on 6, which is ordinary.
 
 **A real tree** — `trainingResearch/tools`, 283 functions, not written with this tool in
 mind:
@@ -80,6 +105,11 @@ mind:
 | probed | 127 (45%) | 169 (60%) |
 | nondeterministic | **2** | **4** |
 | not probed | 156 | 114 |
+
+Those columns were measured before the all-raising `look` above, which moves some of
+`probed` into `not probed` — a function the ladder never reached is now named as one.
+Neither finding moves: a witness is returned before that rule is reached, so nothing
+that disagreed can become a `look`.
 
 Both findings are genuine: a function returning a `set`, and one whose value differs
 across runs. The gate costs recall and the table says so — one of the two findings it
@@ -162,7 +192,10 @@ dynamic check alone writes to your disk.
 - **Values with no canonical form are excluded, not reported.** `<Thing object at
   0x10f3c2e50>` differs every run and means nothing; flagging it would flag every
   codebase in the world. The count of excluded rungs is printed.
-- **Exception type, not message.** Messages carry paths, addresses and timings.
+- **Exception type, not message.** Messages carry paths, addresses and timings. A rung
+  where every run raised is still compared on that type, so raising is not a way out of
+  the check — but a function where every rung raised is a `look` rather than a clean
+  verdict, and the number of raising rungs is printed either way.
 - **`PYTHONHASHSEED` is cleared for the workers**, so a fixed seed in your environment
   cannot blind the check — and the fact that it was set is reported either way.
 - **The environment is varied between runs** — timezone and locale, borrowed from
@@ -179,7 +212,7 @@ dynamic check alone writes to your disk.
 python3 -m unittest discover -s tests
 ```
 
-25 tests. Two of them are regressions for bugs *in this tool* that first looked like
+32 tests. Two of them are regressions for bugs *in this tool* that first looked like
 findings about the code under test: loading a package module by file path broke relative
 imports and refused 56 of 68 functions, and sending the result vector over stdout meant
 any function that printed corrupted it. Both were caught by pointing the tool at a real

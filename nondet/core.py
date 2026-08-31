@@ -110,6 +110,7 @@ class Verdict:
     compared: int = 0               # rungs that every run could state
     total: int = 0                  # rungs walked
     unstateable: int = 0
+    raised: int = 0                 # comparable rungs where every run raised
     hash_seed_fixed: bool = False
 
     def __str__(self) -> str:
@@ -123,8 +124,18 @@ class Verdict:
         if self.state == "look":
             return f"look             {self.ref} — {self.detail}"
         note = ""
+        if self.raised:
+            # HOW MUCH OF THE LADDER ACTUALLY LANDED. A rung where every run raised
+            # agrees with itself, so it counts as compared — but what agreed there is
+            # an exception type, not the function's answer, and a reader deciding what
+            # this verdict is worth needs that number rather than only the total.
+            note += (
+                f"\n         {self.raised} of those {self.compared} rungs raised in "
+                f"every run, so what agreed\n         there is an exception type and "
+                f"not an answer"
+            )
         if self.hash_seed_fixed:
-            note = (
+            note += (
                 "\n         PYTHONHASHSEED is FIXED in this environment, so hash-order "
                 "nondeterminism\n         could not have been seen — this verdict is "
                 "blind to it"
@@ -469,12 +480,18 @@ def check(path: str, name: str, arity: int, runs: int = RUNS,
 
     total = len(inputs)
     unstateable = 0
+    raised = 0
     comparable = []
     for i in range(total):
         column = [v[i] for v in vectors]
         if any(o.startswith("X:") for o in column):
             unstateable += 1
             continue
+        # A rung where EVERY run raised is comparable — "E:TypeError" is a perfectly
+        # canonical answer and two runs can disagree about it — but it is also a rung
+        # the ladder did not get past, so it is counted as well as compared.
+        if all(o.startswith("E:") for o in column):
+            raised += 1
         comparable.append(i)
 
     for i in comparable:
@@ -488,7 +505,7 @@ def check(path: str, name: str, arity: int, runs: int = RUNS,
                     witness={"args": json.dumps(inputs[i], ensure_ascii=False),
                              "a": first, "b": other},
                     runs=runs, compared=len(comparable), total=total,
-                    unstateable=unstateable, hash_seed_fixed=fixed,
+                    unstateable=unstateable, raised=raised, hash_seed_fixed=fixed,
                 )
 
     if not comparable:
@@ -496,10 +513,33 @@ def check(path: str, name: str, arity: int, runs: int = RUNS,
             ref, "look",
             f"no rung produced a value this can compare — {unstateable} of {total} were "
             f"objects with no canonical form",
-            runs=runs, total=total, unstateable=unstateable,
+            runs=runs, total=total, unstateable=unstateable, raised=raised,
+        )
+
+    # EVERY RUNG RAISED, which is not the same result as every rung agreeing.
+    #
+    # A vector of 23 identical `E:TypeError`s agrees with itself perfectly, and
+    # agreement is what the verdict is computed from — so a function the ladder never
+    # reached used to print the same three words as one it exercised fully. The
+    # commonest shape is a function taking a mapping or an instance: every rung of a
+    # scalar ladder is the wrong type, every call raises on the way in, and the
+    # function's own behaviour is never executed at all.
+    #
+    # This is the same claim the `look` below it makes about `X:` values with a
+    # different prefix: the absence of a counterexample is worth much less when no
+    # rung reached the function. Only ALL of them raising qualifies — a function that
+    # raises on some inputs and returns on others is ordinary, and stays deterministic.
+    if raised == len(comparable):
+        return Verdict(
+            ref, "look",
+            f"every rung raised — the ladder reached this function's type errors and "
+            f"never its behaviour ({raised} of {total} rungs)",
+            runs=runs, compared=len(comparable), total=total,
+            unstateable=unstateable, raised=raised, hash_seed_fixed=fixed,
         )
     return Verdict(ref, "deterministic", "", runs=runs, compared=len(comparable),
-                   total=total, unstateable=unstateable, hash_seed_fixed=fixed)
+                   total=total, unstateable=unstateable, raised=raised,
+                   hash_seed_fixed=fixed)
 
 
 def scan(paths, runs: int = RUNS, unsafe: bool = False) -> Census:

@@ -166,8 +166,89 @@ class TheLabelledSet(unittest.TestCase):
     def test_importing_time_without_reading_it_is_not_a_finding(self):
         self.assertEqual(verdict_for("duration_arithmetic").state, "deterministic")
 
-    def test_raising_the_same_way_every_time_is_deterministic(self):
-        self.assertEqual(verdict_for("always_raises").state, "deterministic")
+    def test_a_look_is_not_scored_as_a_false_positive(self):
+        # `always_raises` is labelled deterministic — that is a fact about the function
+        # — and the checker now returns `look` for it, because every rung raised. The
+        # grading above must not count that as a false positive: a look is never a
+        # finding. The `caught >= 9` denominator is what stops a checker that returns
+        # `look` for everything from scoring perfectly here.
+        self.assertEqual(LABELS["always_raises"], "deterministic")
+        self.assertEqual(verdict_for("always_raises").state, "look")
+
+
+class TheLadderHasToActuallyReachTheFunction(unittest.TestCase):
+    """`deterministic` used to mean two different things and print the same three words.
+
+    An exception is recorded as `E:TypeError` — the type and not the message, for good
+    reasons — and `E:TypeError` is a perfectly canonical value, so a rung where every
+    run raised counted as COMPARED. A vector of 23 identical `E:TypeError`s agrees with
+    itself perfectly, and agreement is what the verdict is computed from. So a function
+    taking a mapping, whose every scalar rung raised on the way in and whose body never
+    ran at all, was reported deterministic in the same words as one the ladder walked
+    end to end.
+    """
+
+    MAPPING_AND_ITS_CONTROL = """
+        def takes_a_mapping(args):
+            "Never reached: every rung is a scalar, so every call raises on the way in."
+            return args["key"]
+
+        def takes_a_scalar(text):
+            "THE CONTROL, in the SAME FILE: an ordinary signature the ladder reaches."
+            return str(text).upper()
+        """
+
+    def test_a_function_the_ladder_never_reaches_is_a_look(self):
+        path = write_module(self.MAPPING_AND_ITS_CONTROL)
+        v = verdict_for("takes_a_mapping", path=path)
+        self.assertEqual(v.state, "look", v.detail)
+        self.assertIn("every rung raised", v.detail)
+        self.assertEqual(v.raised, v.compared)
+        self.assertGreater(v.raised, 0)
+
+    def test_and_the_control_in_the_same_file_is_still_probed(self):
+        # THE DIVERGENCE GATE. Both functions come from one file, one loader, one run,
+        # so the difference can only be the signature. Without this, the test above is
+        # satisfied by a checker that returns `look` for everything.
+        path = write_module(self.MAPPING_AND_ITS_CONTROL)
+        states = {name: verdict_for(name, path=path).state
+                  for name in ("takes_a_mapping", "takes_a_scalar")}
+        self.assertEqual(states["takes_a_scalar"], "deterministic")
+        self.assertNotEqual(states["takes_a_mapping"], states["takes_a_scalar"])
+
+    def test_raising_on_SOME_rungs_and_returning_on_others_is_ordinary(self):
+        # Only EVERY comparable rung raising says the ladder never landed. A function
+        # that rejects bad input and answers good input is most of a real codebase, and
+        # a rule that refused it would be worse than the bug it fixes.
+        v = verdict_for("sometimes_raises")
+        self.assertEqual(v.state, "deterministic", v.detail)
+        self.assertGreater(v.raised, 0, "the fixture no longer raises on any rung")
+        self.assertLess(v.raised, v.compared)
+
+    def test_the_raised_count_is_reported_and_not_only_counted(self):
+        # How much of the ladder actually landed is the number that tells a reader what
+        # a `deterministic` is worth, and nothing used to report it.
+        v = verdict_for("sometimes_raises")
+        self.assertIn("rungs raised in every run", str(v))
+        self.assertIn(str(v.raised), str(v))
+
+    def test_a_function_that_raises_DIFFERENTLY_is_still_a_finding(self):
+        # Raising is not a free pass out of the check. A rung where every run raised is
+        # counted AND still compared, so two runs raising different types remain a
+        # witness — the all-raising `look` is only reached once nothing disagreed.
+        # `tzname` moves with VARIATIONS, so this cannot flake.
+        path = write_module(
+            """
+            import time
+            def raises_by_timezone(x):
+                if time.tzname[0] == "UTC":
+                    raise ValueError("north")
+                raise TypeError("south")
+            """
+        )
+        v = verdict_for("raises_by_timezone", path=path)
+        self.assertEqual(v.state, "nondeterministic", v.detail)
+        self.assertNotEqual(v.witness["a"], v.witness["b"])
 
 
 class CheckerBugsThatOnceLookedLikeFindings(unittest.TestCase):
