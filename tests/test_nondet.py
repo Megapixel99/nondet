@@ -1,5 +1,6 @@
 """What this claims, and the controls that make each claim falsifiable."""
 
+import math
 import os
 import sys
 import textwrap
@@ -12,6 +13,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "fixtures"))
 
 from nondet import check, functions_in, scan  # noqa: E402
+from nondet.core import LADDER_VALUES, RUNS  # noqa: E402
 from known import LABELS  # noqa: E402
 
 KNOWN = os.path.join(ROOT, "fixtures", "known.py")
@@ -92,6 +94,50 @@ class TheEnvironmentIsVaried(unittest.TestCase):
             )
         finally:
             core.VARIATIONS = original
+
+
+class TheProbeIsWideEnoughToSeeHashOrder(unittest.TestCase):
+    """The flagship defect is only detectable if the probe admits many orderings.
+
+    `set_of_keys` was MISSED on roughly one check in thirty-five, and the cause was in
+    the ladder rather than the detector: the widest dict it offered had three keys,
+    three keys admit 3! = 6 iteration orders, and three fresh processes therefore land
+    on the same order by coincidence (1/6)^2 = 2.8% of the time. Measured over 300 hash
+    seeds the three-key dict produced exactly those 6 orders and the eight-key dict
+    produced 299 distinct ones, so the uniform model above is not an approximation
+    anybody has to trust.
+
+    Across a three-version CI matrix that is a failure on about one push in seven, and
+    it arrived as a flaky job rather than as a finding, because the test that graded the
+    detection asserted the outcome outright.
+
+    So this pins the MECHANISM. An outcome assertion for a probabilistic detector is
+    precisely the thing that was already there and did not hold; this one cannot flake
+    because it never runs the detector.
+    """
+
+    def test_the_ladder_offers_a_dict_wide_enough_that_agreement_is_not_chance(self):
+        widest = max((len(v) for v in LADDER_VALUES if isinstance(v, dict)), default=0)
+        self.assertGreater(widest, 0, "the ladder offers no dict at all")
+
+        orders = math.factorial(widest)
+        # All RUNS processes agreeing by chance, if the orders were equiprobable.
+        # They very nearly are: 300 seeds gave 299 distinct orders at widest=8.
+        by_chance = (1.0 / orders) ** (RUNS - 1)
+        self.assertLess(
+            by_chance, 1e-6,
+            "the widest dict in the ladder has %d keys, so %d fresh processes agree on "
+            "its set order by chance %.3f%% of the time -- which is a MISSED "
+            "nondeterministic function, reported as deterministic"
+            % (widest, RUNS, 100 * by_chance))
+
+    def test_the_narrow_dict_is_still_there(self):
+        # The wide dict was ADDED, not substituted. A small dict is the shape most
+        # real callers pass, and dropping it would trade one blind spot for another.
+        sizes = sorted(len(v) for v in LADDER_VALUES if isinstance(v, dict))
+        self.assertIn(0, sizes, "the empty dict left the ladder")
+        self.assertTrue(any(0 < n <= 3 for n in sizes),
+                        "the ladder now offers only wide dicts: %r" % (sizes,))
 
 
 class TheLabelledSet(unittest.TestCase):

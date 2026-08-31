@@ -69,6 +69,16 @@ LADDER_VALUES = [
     [1, 2, 3],
     [],
     {"alpha": 1, "beta": 2, "gamma": 3},
+    # A WIDE dict, because the narrow one above is a weak probe for the very defect
+    # this tool is best at finding. Set iteration order is the flagship case, and its
+    # detectability is entirely a function of how many orderings the key set admits:
+    # three keys admit 3! = 6 orders and all six occur, so three fresh processes
+    # agree by chance 2.8% of the time and the defect is MISSED. Measured, not
+    # assumed -- 300 hash seeds gave 6 distinct orders for the three-key dict and 299
+    # for this one. Eight keys make that coincidence ~1e-9, and it costs one more
+    # ladder row rather than another subprocess per function.
+    {"alpha": 1, "beta": 2, "gamma": 3, "delta": 4,
+     "epsilon": 5, "zeta": 6, "eta": 7, "theta": 8},
     {},
 ]
 

@@ -151,6 +151,14 @@ dynamic check alone writes to your disk.
 
 - **The ladder is fixed and small.** Arity 1–3, no variadics, no keyword-only. On a real
   tree that is most of the 156 `look`s, and the census names every one.
+- **Detection is probabilistic, and how probabilistic depends on the probe.** A
+  hash-order defect is caught by three fresh processes disagreeing, so it is missed
+  whenever all three land on the same order. That chance is governed entirely by how
+  many orderings the input admits: a three-key dict admits 3! = 6 and is missed 2.8% of
+  the time, an eight-key dict admits 40320 and is missed about once in a billion. The
+  ladder carries both, so the wide one does the detecting and the narrow one still
+  covers the shape most callers actually pass. `deterministic` has always meant "no run
+  disagreed" rather than "cannot disagree" — this is what that costs in practice.
 - **Values with no canonical form are excluded, not reported.** `<Thing object at
   0x10f3c2e50>` differs every run and means nothing; flagging it would flag every
   codebase in the world. The count of excluded rungs is printed.
