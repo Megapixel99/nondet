@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nondet"
-version = "0.2.0"
+version = "0.2.1"
 description = "Run a function in fresh processes and see if it answers the same. A witness is a fact; agreement is not."
 readme = "README.md"
 requires-python = ">=3.9"
