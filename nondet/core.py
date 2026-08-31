@@ -514,6 +514,7 @@ def check(path: str, name: str, arity: int, runs: int = RUNS,
             f"no rung produced a value this can compare — {unstateable} of {total} were "
             f"objects with no canonical form",
             runs=runs, total=total, unstateable=unstateable, raised=raised,
+            hash_seed_fixed=fixed,
         )
 
     # EVERY RUNG RAISED, which is not the same result as every rung agreeing.
@@ -529,7 +530,14 @@ def check(path: str, name: str, arity: int, runs: int = RUNS,
     # different prefix: the absence of a counterexample is worth much less when no
     # rung reached the function. Only ALL of them raising qualifies — a function that
     # raises on some inputs and returns on others is ordinary, and stays deterministic.
-    if raised == len(comparable):
+    #
+    # THE DENOMINATOR IS `total`, NOT `len(comparable)`. A rung holding a value with no
+    # canonical form is excluded from the comparison — but the function RAN on it and
+    # returned something, so it is not a rung the ladder failed to reach. Counted
+    # against `comparable` alone, a function returning objects on its six string rungs
+    # and raising on the other seventeen satisfied the rule, and this printed "never
+    # its behaviour" about a body that had just executed six times.
+    if raised == total:
         return Verdict(
             ref, "look",
             f"every rung raised — the ladder reached this function's type errors and "

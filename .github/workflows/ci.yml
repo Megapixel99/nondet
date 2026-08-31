@@ -11,9 +11,11 @@
 #      files. The safety gate exists because of that, and this is the check that the
 #      gate is still doing its job.
 #
-#   3. THE FIXTURE MEASUREMENT IS RE-RUN, NOT QUOTED. The README claims 9 of 9 caught
-#      and 0 of 10 falsely flagged. A number in a README that nothing recomputes is a
-#      number that was true once.
+#   3. THE FIXTURE MEASUREMENT IS RE-RUN, NOT QUOTED. The README claims 9 of 9 caught,
+#      0 of 10 falsely flagged and 1 of 10 returned as a `look`. A number in a README
+#      that nothing recomputes is a number that was true once — and the `look` row is
+#      the one that needs recomputing most, because a `look` is never a finding and so
+#      never moves the other two.
 #
 # Action versions are pinned at v7 deliberately. Older majors still run, on a Node the
 # runner silently substitutes, and a pin that is wrong for its own runtime is invisible
@@ -109,12 +111,16 @@ jobs:
           missed = [n for n, e, g in rows if e == "nondeterministic" and g != e]
           false  = [n for n, e, g in rows if e == "deterministic" and g == "nondeterministic"]
           caught = [n for n, e, g in rows if e == "nondeterministic" and g == e]
-          print(f"{len(rows)} labelled, {len(caught)} caught, {len(missed)} missed, {len(false)} false")
+          looked = sorted(n for n, e, g in rows if e == "deterministic" and g == "look")
+          print(f"{len(rows)} labelled, {len(caught)} caught, {len(missed)} missed, {len(false)} false, {len(looked)} look")
           assert not missed, f"missed: {missed}"
           assert not false, f"false positives: {false}"
+          # The README's third row. A `look` is never a finding, so a rule that starts
+          # returning one for ordinary deterministic fixtures passes both asserts above.
+          assert looked == ["always_raises"], f"unexpected looks: {looked}"
           # The denominators, so a fixture file that quietly emptied cannot pass this.
           assert len(caught) >= 9, f"only {len(caught)} nondeterministic fixtures"
-          assert len(rows) >= 18, f"only {len(rows)} labelled fixtures"
+          assert len(rows) >= 19, f"only {len(rows)} labelled fixtures"
           PY
 
       - name: pointed at itself

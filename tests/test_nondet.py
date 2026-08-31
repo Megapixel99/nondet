@@ -151,12 +151,19 @@ class TheLabelledSet(unittest.TestCase):
         caught = [n for n, e, g in rows if e == "nondeterministic" and g == e]
         missed = [n for n, e, g in rows if e == "nondeterministic" and g != e]
         false = [n for n, e, g in rows if e == "deterministic" and g == "nondeterministic"]
+        looked = sorted(n for n, e, g in rows if e == "deterministic" and g == "look")
 
         self.assertEqual(missed, [], f"missed: {missed}")
         self.assertEqual(false, [], f"false positives: {false}")
+        # THE THIRD ROW OF THE README TABLE, RECOMPUTED RATHER THAN QUOTED. A `look` is
+        # never a finding, so a rule that starts returning one for ordinary
+        # deterministic fixtures scores zero false positives and passes the two
+        # assertions above green. Naming the one fixture that is allowed to be a look
+        # is what makes that visible.
+        self.assertEqual(looked, ["always_raises"], f"unexpected looks: {looked}")
         # The denominators, so a fixture file that quietly emptied cannot pass this.
         self.assertGreaterEqual(len(caught), 9)
-        self.assertGreaterEqual(len(rows), 18)
+        self.assertGreaterEqual(len(rows), 19)
 
     def test_seeded_random_is_not_a_false_positive(self):
         # The specific thing a static gate gets wrong: it greps for `random` and
@@ -231,6 +238,33 @@ class TheLadderHasToActuallyReachTheFunction(unittest.TestCase):
         v = verdict_for("sometimes_raises")
         self.assertIn("rungs raised in every run", str(v))
         self.assertIn(str(v.raised), str(v))
+
+    def test_a_rung_the_ladder_REACHED_does_not_count_as_one_it_missed(self):
+        # THE DENOMINATOR. A rung whose value has no canonical form is excluded from
+        # the comparison, but the function RAN on it. Counted against the comparable
+        # rungs alone, this function — which returns an object on all six string rungs
+        # and raises on the other seventeen — satisfied the all-raising rule, and the
+        # tool said "never its behaviour" about a body that had just executed.
+        path = write_module(
+            """
+            class Thing:
+                def __init__(self, s):
+                    self.s = s
+
+            def make_thing(x):
+                "Its body runs on every string rung and returns an unstateable object."
+                if not isinstance(x, str):
+                    raise TypeError("strings only")
+                return Thing(x.upper())
+            """
+        )
+        v = verdict_for("make_thing", path=path)
+        self.assertEqual(v.state, "deterministic", v.detail)
+        self.assertGreater(v.unstateable, 0, "no rung returned an unstateable value")
+        self.assertEqual(v.raised, v.compared)
+        # And the reader is still told what the verdict is worth, rather than the
+        # raising rungs being quietly folded into a clean-looking count.
+        self.assertIn("rungs raised in every run", str(v))
 
     def test_a_function_that_raises_DIFFERENTLY_is_still_a_finding(self):
         # Raising is not a free pass out of the check. A rung where every run raised is

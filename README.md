@@ -212,7 +212,7 @@ dynamic check alone writes to your disk.
 python3 -m unittest discover -s tests
 ```
 
-33 tests. Two of them are regressions for bugs *in this tool* that first looked like
+34 tests. Two of them are regressions for bugs *in this tool* that first looked like
 findings about the code under test: loading a package module by file path broke relative
 imports and refused 56 of 68 functions, and sending the result vector over stdout meant
 any function that printed corrupted it. Both were caught by pointing the tool at a real
