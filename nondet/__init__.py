@@ -21,4 +21,4 @@ from .core import (
 
 __all__ = ["check", "scan", "Verdict", "Census", "functions_in", "ladder",
            "LADDER_VALUES", "MAX_ARITY", "RUNS"]
-__version__ = "0.0.1"
+__version__ = "0.1.0"
