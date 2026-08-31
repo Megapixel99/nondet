@@ -431,5 +431,36 @@ class TheReportedNumbers(unittest.TestCase):
         self.assertGreaterEqual(census.functions, 17)
 
 
+class TheVersionAgreesWithItself(unittest.TestCase):
+    """`pyproject.toml` is the single source of truth, and `__init__.py` types it again.
+
+    `release.yml` reads the version from `pyproject.toml` and says why: a version in two
+    places is a version that disagrees with itself at the next bump. It is in two places
+    anyway — `nondet.__version__` is a literal — and nothing compared them, so a bump
+    that touched only the metadata would publish a wheel whose own `__version__` named
+    the release before it. The build would be green and the artifact would be lying.
+    """
+
+    def test_the_two_declarations_are_the_same_string(self):
+        import nondet
+
+        with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+            raw = fh.read()
+        try:
+            import tomllib                                    # 3.11+
+            declared = tomllib.loads(raw)["project"]["version"]
+        except ImportError:                                   # the 3.9 and 3.10 legs
+            import re
+            match = re.search(r'^version\s*=\s*"([^"]+)"', raw, re.M)
+            self.assertIsNotNone(match, "pyproject.toml declares no version")
+            declared = match.group(1)
+
+        self.assertEqual(
+            nondet.__version__, declared,
+            "nondet.__version__ is %r and pyproject.toml says %r — an installed wheel "
+            "would report the wrong version" % (nondet.__version__, declared),
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
