@@ -52,13 +52,13 @@ test says so.
 |---|---|---|
 | `nondeterministic` | an input, and two different answers to it | **a witness, and a witness is a fact** |
 | `deterministic` | no run disagreed, across N runs over a finite ladder | the absence of a counterexample, which is not proof of its absence |
-| `look` | could not be probed — and why | never a finding, never fails the run |
+| `look` | could not be probed, and why | never a finding, never fails the run |
 
 The `deterministic` line says so in the output rather than letting you read it as a
 guarantee.
 
 **And it has to have been earned.** An exception is recorded as its type, so a rung
-where every run raised is comparable like any other — `E:TypeError` is a canonical
+where every run raised is comparable like any other: `E:TypeError` is a canonical
 value and two runs can still disagree about it. But a function where *every* rung
 raised is one whose body the ladder never reached, and that is not the same result as
 a function it walked end to end. It is a `look`, and the reason says so:
@@ -71,7 +71,7 @@ look             tools/handler.py::run_tool — every rung raised — the ladder
 The commonest shape is a function taking a mapping or an instance: every rung of a
 scalar ladder is the wrong type, the call raises on the way in, and nothing inside the
 function ever runs. Raising on *some* rungs and answering on others is ordinary and
-stays `deterministic` — with the count of raising rungs printed, because that is what
+stays `deterministic`, with the count of raising rungs printed, because that is what
 says how much of the ladder actually landed.
 
 ## What it is measured at
@@ -83,10 +83,10 @@ separately from the names so the checker is not graded against its own conventio
 |---|---|
 | nondeterministic caught | **9 of 9** |
 | deterministic falsely flagged | **0 of 10** |
-| deterministic returned as `look` | **1 of 10** — `always_raises`, and deliberately |
+| deterministic returned as `look` | **1 of 10**: `always_raises`, and deliberately |
 
 The pairs are the point. `dedup_unsorted` and `dedup_sorted` are one `sorted()` apart.
-`seeded` uses `random.Random(42)` — deterministic, and the specific false positive a
+`seeded` uses `random.Random(42)`: deterministic, and the specific false positive a
 static gate that greps for `random` produces. `duration_arithmetic` imports `time` and
 never reads the clock.
 
@@ -95,9 +95,9 @@ label is a fact about the function and the checker is graded against it rather t
 describing it. What the checker returns is a `look`: every rung raised, so it never saw
 this function return anything, and it cannot tell that apart from a function whose
 ladder inputs were simply the wrong shape. `sometimes_raises` is the control that keeps
-the rule narrow — it raises on 17 rungs and answers on 6, which is ordinary.
+the rule narrow; it raises on 17 rungs and answers on 6, which is ordinary.
 
-**A real tree** — `trainingResearch/tools`, 283 functions, not written with this tool in
+**A real tree**: `trainingResearch/tools`, 283 functions, not written with this tool in
 mind:
 
 | | with the safety gate | `--unsafe` |
@@ -107,12 +107,12 @@ mind:
 | not probed | 156 | 114 |
 
 Those columns were measured before the all-raising `look` above, which moves some of
-`probed` into `not probed` — a function the ladder never reached is now named as one.
+`probed` into `not probed`: a function the ladder never reached is now named as one.
 Neither finding moves: a witness is returned before that rule is reached, so nothing
 that disagreed can become a `look`.
 
 Both findings are genuine: a function returning a `set`, and one whose value differs
-across runs. The gate costs recall and the table says so — one of the two findings it
+across runs. The gate costs recall and the table says so, one of the two findings it
 hides (`harness_backlog`, which returns a path under a fresh temp directory) is a true
 positive that the gate can no longer see.
 
@@ -120,16 +120,16 @@ positive that the gate can no longer see.
 
 This is the sharpest thing to know, and it was found the hard way. Pointed at a real
 tree, `nondet` reported a function raising `TypeError` on one run and `FileExistsError`
-on the next — a true finding, and proof that the probe had **created a file on
+on the next: a true finding, and proof that the probe had **created a file on
 somebody's disk**.
 
 So there are two gates, asking different questions:
 
-- **is it safe to run?** — static, conservative, and refusing costs a `look`
-- **is it deterministic?** — dynamic, and the point of the package
+- **is it safe to run?**: static, conservative, and refusing costs a `look`
+- **is it deterministic?**: dynamic, and the point of the package
 
 The line is drawn at **writing and communicating**, not at impurity. `time`, `random`,
-`uuid`, `os.getpid` and set ordering are read-only and nondeterministic — they are
+`uuid`, `os.getpid` and set ordering are read-only and nondeterministic; they are
 exactly the target, and a gate that refused them would refuse the findings. What gets
 refused is anything that could change the world outside the process: `open()`,
 `subprocess`, `shutil`, sockets, `os.remove` and friends.
@@ -149,7 +149,7 @@ another asserts a file-writing function is refused *and the file does not appear
 
 ## Prior art
 
-Swept on mechanism nouns across **both registries** — the first sweep queried npm hard
+Swept on mechanism nouns across **both registries**: the first sweep queried npm hard
 and PyPI only by guessing names, which is how it nearly missed the entry below.
 
 On npm, `keywords:purity` returns 26 packages and **every one is static analysis**
@@ -188,17 +188,17 @@ dynamic check alone writes to your disk.
   the time, an eight-key dict admits 40320 and is missed about once in a billion. The
   ladder carries both, so the wide one does the detecting and the narrow one still
   covers the shape most callers actually pass. `deterministic` has always meant "no run
-  disagreed" rather than "cannot disagree" — this is what that costs in practice.
+  disagreed" rather than "cannot disagree"; this is what that costs in practice.
 - **Values with no canonical form are excluded, not reported.** `<Thing object at
   0x10f3c2e50>` differs every run and means nothing; flagging it would flag every
   codebase in the world. The count of excluded rungs is printed.
 - **Exception type, not message.** Messages carry paths, addresses and timings. A rung
   where every run raised is still compared on that type, so raising is not a way out of
-  the check — but a function where every rung raised is a `look` rather than a clean
+  the check, but a function where every rung raised is a `look` rather than a clean
   verdict, and the number of raising rungs is printed either way.
 - **`PYTHONHASHSEED` is cleared for the workers**, so a fixed seed in your environment
-  cannot blind the check — and the fact that it was set is reported either way.
-- **The environment is varied between runs** — timezone and locale, borrowed from
+  cannot blind the check, and the fact that it was set is reported either way.
+- **The environment is varied between runs**: timezone and locale, borrowed from
   `reprotest`. Hash randomisation is free with every new process; these are not. So
   `deterministic` here means *"the same answer under these varied conditions"*, which is
   a stronger claim than three runs on one machine. `epoch_year` in the fixtures is the
