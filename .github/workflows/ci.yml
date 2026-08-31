@@ -12,7 +12,7 @@
 #      gate is still doing its job.
 #
 #   3. THE FIXTURE MEASUREMENT IS RE-RUN, NOT QUOTED. The README claims 9 of 9 caught
-#      and 0 of 9 falsely flagged. A number in a README that nothing recomputes is a
+#      and 0 of 10 falsely flagged. A number in a README that nothing recomputes is a
 #      number that was true once.
 #
 # Action versions are pinned at v7 deliberately. Older majors still run, on a Node the

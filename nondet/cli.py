@@ -74,7 +74,8 @@ def main(argv=None) -> int:
              "verdicts": [
                  {"ref": v.ref, "state": v.state, "detail": v.detail,
                   "witness": v.witness, "compared": v.compared, "total": v.total,
-                  "unstateable": v.unstateable, "hash_seed_fixed": v.hash_seed_fixed}
+                  "unstateable": v.unstateable, "raised": v.raised,
+                  "hash_seed_fixed": v.hash_seed_fixed}
                  for v in verdicts
              ]},
             sys.stdout, indent=2, sort_keys=True,
@@ -102,6 +103,11 @@ def main(argv=None) -> int:
     if unstateable:
         print(f"  {unstateable} rung(s) held values with no canonical form and were "
               f"excluded from every comparison")
+    raised = sum(v.raised for v in verdicts)
+    if raised:
+        print(f"  {raised} rung(s) raised in every run — there the comparison was of "
+              f"exception types,\n  and a function whose every rung raised is a look "
+              f"rather than a clean verdict")
     if any(v.hash_seed_fixed for v in verdicts):
         print("  PYTHONHASHSEED was set in this environment; it was cleared for the "
               "workers so hash-order\n  nondeterminism could still be seen")

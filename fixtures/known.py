@@ -96,8 +96,30 @@ def duration_arithmetic(x):
 
 
 def always_raises(x):
-    """Raising the same way every time is deterministic."""
+    """Raising the same way every time is deterministic — and is reported as a `look`.
+
+    THE LABEL BELOW STAYS `deterministic` BECAUSE IT IS A FACT ABOUT THE FUNCTION, and
+    the labels grade the checker rather than describe its output. What the checker now
+    says is `look`: every rung of the ladder raised, so it never observed this function
+    return anything, and it cannot tell this apart from `takes_a_mapping` — a function
+    whose ladder inputs are simply the wrong shape and whose behaviour was never
+    reached. Both are the absence of a counterexample obtained without executing the
+    interesting part, and neither is a finding. See `sometimes_raises` for the case the
+    rule deliberately leaves alone.
+    """
     raise ValueError("no")
+
+
+def sometimes_raises(x):
+    """Raises on some rungs and returns on others, which is an ORDINARY function.
+
+    The control for the all-raising `look`: a rule that made any raising at all
+    unprobeable would refuse most of a real codebase. Only every comparable rung
+    raising says the ladder never landed.
+    """
+    if not isinstance(x, int) or x is True or x is False:
+        raise TypeError("ints only")
+    return x * 3
 
 
 def fib(x):
@@ -141,6 +163,7 @@ LABELS = {
     "seeded": "deterministic",
     "duration_arithmetic": "deterministic",
     "always_raises": "deterministic",
+    "sometimes_raises": "deterministic",
     "fib": "deterministic",
     "round_tripped": "deterministic",
     "env_read": "deterministic",
