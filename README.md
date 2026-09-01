@@ -212,7 +212,14 @@ dynamic check alone writes to your disk.
 python3 -m unittest discover -s tests
 ```
 
-34 tests. Two of them are regressions for bugs *in this tool* that first looked like
+34 tests, and CI reads that number rather than the exit code. `unittest discover`
+pointed at a directory holding no tests prints `Ran 0 tests` and passes, so the run is
+wrapped in [`didrun`](https://github.com/Megapixel99/didrun) with 34 as a floor; the
+self-check is wrapped in [`zerocase`](https://github.com/Megapixel99/zerocase), which
+reads `deterministic` out of `--json` and refuses a clean result from a run that settled
+nothing. A package about denominators should not have steps that pass with a zero one.
+
+Two of the 34 are regressions for bugs *in this tool* that first looked like
 findings about the code under test: loading a package module by file path broke relative
 imports and refused 56 of 68 functions, and sending the result vector over stdout meant
 any function that printed corrupted it. Both were caught by pointing the tool at a real
